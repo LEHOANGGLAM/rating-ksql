@@ -1,2 +1,1 @@
-# rating-ksql
-rating-ksql
+###############
