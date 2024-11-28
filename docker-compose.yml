@@ -2,13 +2,13 @@
   version: '3.8'
   services:
     zookeeper:
-      image: confluentinc/cp-zookeeper:5.1.1
+      image: confluentinc/cp-zookeeper:7.1.1
       environment:
         ZOOKEEPER_CLIENT_PORT: 2181
         ZOOKEEPER_TICK_TIME: 2000
   
     kafka:
-      image: confluentinc/cp-enterprise-kafka:5.1.1
+      image: confluentinc/cp-enterprise-kafka:7.1.1
       depends_on:
         - zookeeper
       ports:
@@ -22,6 +22,8 @@
         KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
         KAFKA_METRIC_REPORTERS: io.confluent.metrics.reporter.ConfluentMetricsReporter
         KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1     
         KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
         CONFLUENT_METRICS_REPORTER_BOOTSTRAP_SERVERS: kafka:29092
         CONFLUENT_METRICS_REPORTER_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -30,7 +32,7 @@
         CONFLUENT_SUPPORT_CUSTOMER_ID: 'anonymous'
   
     schema-registry:
-      image: confluentinc/cp-schema-registry:5.1.1
+      image: confluentinc/cp-schema-registry:7.1.1
       depends_on:
         - zookeeper
         - kafka
@@ -39,9 +41,11 @@
       environment:
         SCHEMA_REGISTRY_HOST_NAME: schema-registry
         SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper:2181
+        SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:29092
+        SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081   
   
     kafka-connect-cp:
-      image: confluentinc/cp-kafka-connect:5.1.1
+      image: confluentinc/cp-kafka-connect:7.1.1
       depends_on:
         - zookeeper
         - kafka
@@ -72,7 +76,8 @@
        - $PWD/scripts:/scripts
   
     ksql-server:
-      image: confluentinc/cp-ksql-server:5.1.1
+      image: confluentinc/cp-ksqldb-server:7.1.1
+      container_name: ksql-server
       depends_on:
         - kafka
         - schema-registry
@@ -85,32 +90,33 @@
         KSQL_KSQL_SCHEMA_REGISTRY_URL: http://schema-registry:8081
         KSQL_KSQL_SERVICE_ID: confluent_ksql_streams_01
   
-    control-center:
-      image: confluentinc/cp-enterprise-control-center:5.1.1
-      container_name: control-center
-      restart: always
-      depends_on:
-        - zookeeper
-        - kafka
-        - kafka-connect-cp
-      ports:
-        - "9021:9021"
-      environment:
-        CONTROL_CENTER_BOOTSTRAP_SERVERS: "kafka:29092"
-        CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
-        CONTROL_CENTER_REPLICATION_FACTOR: 1
-        CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_REPLICATION: 1
-        CONTROL_CENTER_INTERNAL_TOPICS_REPLICATION: 1
-        CONTROL_CENTER_COMMAND_TOPIC_REPLICATION: 1
-        CONTROL_CENTER_METRICS_TOPIC_REPLICATION: 1
-        CONTROL_CENTER_STREAMS_NUM_STREAM_THREADS: 1
-        CONTROL_CENTER_KSQL_URL: "http://ksql-server:8088"
-        CONTROL_CENTER_KSQL_ADVERTISED_URL: "http://ksql-server:8088"
-        CONTROL_CENTER_STREAMS_CONSUMER_REQUEST_TIMEOUT_MS: "960032"
+    # control-center:
+    #   image: confluentinc/cp-enterprise-control-center:latest
+    #   container_name: control-center
+    #   restart: always
+    #   depends_on:
+    #     - zookeeper
+    #     - kafka
+    #     - kafka-connect-cp
+    #   ports:
+    #     - "9021:9021"
+    #   environment:
+    #     CONTROL_CENTER_BOOTSTRAP_SERVERS: "kafka:29092"
+    #     CONTROL_CENTER_ZOOKEEPER_CONNECT: "zookeeper:2181"
+    #     CONTROL_CENTER_REPLICATION_FACTOR: 1
+    #     CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_REPLICATION: 1
+    #     CONTROL_CENTER_INTERNAL_TOPICS_REPLICATION: 1
+    #     CONTROL_CENTER_COMMAND_TOPIC_REPLICATION: 1
+    #     CONTROL_CENTER_METRICS_TOPIC_REPLICATION: 1
+    #     CONTROL_CENTER_STREAMS_NUM_STREAM_THREADS: 1
+    #     CONTROL_CENTER_KSQL_URL: "http://ksql-server:8088"
+    #     CONTROL_CENTER_KSQL_ADVERTISED_URL: "http://ksql-server:8088"
+    #     CONTROL_CENTER_STREAMS_CONSUMER_REQUEST_TIMEOUT_MS: "960032"
   
     # Runs the Kafka KSQL data generator for ratings
+    # https://github.com/confluentinc/ksql/blob/4.1.0-post/ksql-examples/src/main/resources/ratings_schema.avro
     datagen-ratings:
-      image: confluentinc/ksql-examples:5.1.0
+      image: confluentinc/ksql-examples:5.4.11-1-ubi8
       depends_on:
         - kafka
         - schema-registry
